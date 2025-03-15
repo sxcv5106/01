@@ -1,0 +1,317 @@
+import time
+import threading
+import pyautogui
+import keyboard
+import pyscreeze
+import sys
+import os
+import datetime
+
+
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+def click_button(image, confidence=0.7, click_times=1, interval=0.2,
+                 step_name="", x_offset=0, y_offset=0, region=None):
+    if not os.path.isfile(image):
+        print(f"[{time.strftime('%m-%d %H:%M')}] 找不到圖片：{image}")
+        return False
+    try:
+        location = pyautogui.locateCenterOnScreen(image, confidence=confidence, region=region)
+        if location:
+            print(f"[{time.strftime('%m-%d %H:%M')}] 發現 {step_name}，點擊座標: ({location[0] + x_offset}, {location[1] + y_offset})")
+            for _ in range(click_times):
+                try:
+                    pyautogui.click(location[0] + x_offset, location[1] + y_offset)
+                    time.sleep(interval)
+                except pyautogui.FailSafeException:
+                    print(f"[{time.strftime('%m-%d %H:%M')}] ⚠️ Fail-Safe 觸發！滑鼠移動到螢幕角落，跳過 {step_name} 點擊")
+                    return False
+            return True
+        else:
+            print(f"[{time.strftime('%m-%d %H:%M')}] ❌ {step_name} ({image}) 未偵測到")
+    except (pyscreeze.ImageNotFoundException, pyautogui.ImageNotFoundException) as e:
+        print(f"[{time.strftime('%m-%d %H:%M')}] {step_name} 未偵測到圖片：{e}")
+    return False
+
+running = False
+
+def start_script():
+    global running
+    if running:
+        print(f"[{time.strftime('%m-%d %H:%M')}] 運作中")
+        return
+    running = True
+    print(f"[{time.strftime('%m-%d %H:%M')}] 啟動")
+    threading.Thread(target=main_loop, daemon=True).start()
+
+
+def stop_script():
+    global running
+    running = False
+    print(f"[{time.strftime('%m-%d %H:%M')}] 停止！")
+
+def main_loop():
+    global running
+    while running:
+        pyautogui.doubleClick(585,2081)
+        if click_button(resource_path(os.path.join("images", "game.png")),
+                        confidence=0.7, click_times=1, step_name="偵測遊戲閃退"):
+            print(f"[{time.strftime('%m-%d %H:%M')}] 偵測到遊戲閃退")
+            time.sleep(60)
+        else:
+            print(f"[{time.strftime('%m-%d %H:%M')}] 未偵測到取消配對")
+        if click_button(resource_path(os.path.join("images", "start_game.png")),
+                        confidence=0.7, click_times=1, step_name="開始遊戲"):
+            print(f"[{time.strftime('%m-%d %H:%M')}] 點擊開始遊戲")
+            time.sleep(11)
+        else:
+            print(f"[{time.strftime('%m-%d %H:%M')}] 未偵測到開始遊戲")
+            continue
+        if click_button(resource_path(os.path.join("images", "out_of_energy.png")),
+                        confidence=0.7, step_name="檢查能量不足"):
+            if not click_button(resource_path(os.path.join("images", "exit_button.png")),
+                                step_name="關閉能量不足通知"):
+                click_button(resource_path(os.path.join("images", "backup_exit_button.png")),
+                             step_name="關閉能量不足通知(備用)")
+            print(f"[{time.strftime('%m-%d %H:%M')}] 能量不足")
+            time.sleep(120)
+            continue
+
+        print(f"[{time.strftime('%m-%d %H:%M')}] 進入遊戲後")
+        time.sleep(7)
+        click_button(resource_path(os.path.join("images", "speed_up.png")), step_name="啟動加速")
+        click_button(resource_path(os.path.join("images", "enhance.png")), step_name="打開強化介面")
+        click_button(resource_path(os.path.join("images", "upgrade_normal_troop.png")),
+                     click_times=2, interval=1, step_name="強化一般兵種兩次", y_offset=120)
+        if not click_button(resource_path(os.path.join("images", "exit_button.png")),
+                            step_name="關閉強化介面"):
+            click_button(resource_path(os.path.join("images", "backup_exit_button.png")),
+                         step_name="關閉強化介面(備用)")
+
+        print(f"[{time.strftime('%m-%d %H:%M')}] 執行召喚")
+        click_button(resource_path(os.path.join("images", "luck_summon.png")),
+                     confidence=0.85, step_name="運氣召喚")
+        click_button(resource_path(os.path.join("images", "hero_summon.png")),
+                     click_times=2, interval=1, step_name="英雄召喚兩次", region=(430, 1524, 300, 450))
+        if not click_button(resource_path(os.path.join("images", "exit_button.png")),
+                            step_name="關閉召喚介面"):
+            click_button(resource_path(os.path.join("images", "backup_exit_button.png")),
+                         step_name="關閉召喚介面(備用)")
+        time.sleep(10)
+        print(f"[{time.strftime('%m-%d %H:%M')}] 執行7次召喚...")
+        click_button(resource_path(os.path.join("images", "summon.png")),
+                     click_times=7, interval=0.3, step_name="執行7次召喚")
+
+        priority_merge_images = ["merge_dragon.png", "merge_wind_girl.png", "merge_frog.png"]
+        print(f"[{time.strftime('%m-%d %H:%M')}] 檢查神話英雄合成")
+        for _ in range(2):
+            for image in priority_merge_images:
+                if click_button(resource_path(os.path.join("images", image)),
+                                confidence=0.7, click_times=1, step_name=f"合成：{image}"):
+                    break
+                time.sleep(0.5)
+
+        while running:
+            pyautogui.doubleClick(585,2081)
+            reward_image = resource_path(os.path.join("images", "level_clear_reward_selection.png"))
+            try:
+                reward_found = pyautogui.locateCenterOnScreen(reward_image, confidence=0.7)
+            except pyautogui.ImageNotFoundException:
+                reward_found = None
+            if reward_found:
+                print(f"[{time.strftime('%m-%d %H:%M')}] 通關獎勵")
+                time.sleep(5)
+
+            elite_images = ["elite_monster.png", "backup_elite_monster1.png", "backup_elite_monster2.png",
+                            "backup_elite_monster3.png", "backup_elite_monster4.png"]
+            elite_found = False
+            for img in elite_images:
+                if click_button(resource_path(os.path.join("images", img)),
+                                confidence=0.7, click_times=1, step_name="偵測菁英怪",
+                                region=(930, 420, 250, 250)):
+                    elite_found = True
+                    break
+                time.sleep(0.5)
+            if elite_found:
+                print(f"[{time.strftime('%m-%d %H:%M')}] 偵測到菁英怪")
+                time.sleep(2)
+
+                challenge_images = ["challenge_button.png", "backup_challenge_button.png"]
+                for img in challenge_images:
+                    if click_button(resource_path(os.path.join("images", img)),
+                                    confidence=0.7, click_times=1, step_name="挑戰菁英怪",
+                                    region=(350, 1200, 450, 200)):
+                        print(f"[{time.strftime('%m-%d %H:%M')}] 菁英怪挑戰已處理")
+                        time.sleep(3)
+                        break
+                    time.sleep(0.5)
+                continue
+
+            print(f"[{time.strftime('%m-%d %H:%M')}] 12秒執行一次神話強化與單次召喚")
+            time.sleep(12)
+
+            click_button(resource_path(os.path.join("images", "enhance.png")), step_name="打開強化介面")
+            time.sleep(0.5)
+            click_button(resource_path(os.path.join("images", "myth_upgrade.png")),
+                         click_times=1, interval=1, step_name="神話角色強化", y_offset=200)
+            click_button(resource_path(os.path.join("images", "exit_button.png")), step_name="關閉強化介面")
+            click_button(resource_path(os.path.join("images", "summon.png")),
+                         click_times=1, interval=0.5, step_name="召喚")
+            click_button(resource_path(os.path.join("images", "luck_summon.png")),
+                         confidence=0.85, step_name="運氣召喚 (每 30 秒)")
+            click_button(resource_path(os.path.join("images", "hero_summon.png")),
+                         click_times=5, interval=1, step_name="英雄召喚 5 次", region=(430, 1524, 300, 450))
+            click_button(resource_path(os.path.join("images", "exit_button.png")), step_name="關閉召喚介面")
+
+            for image in priority_merge_images:
+                if click_button(resource_path(os.path.join("images", image)),
+                                confidence=0.7, click_times=1, step_name=f"合成英雄：{image}"):
+                    break
+                time.sleep(0.5)
+
+            if click_button(resource_path(os.path.join("images", "frog.png")),
+                            confidence=0.7, click_times=1, step_name="偵測青蛙王子"):
+                time.sleep(0.2)
+                click_button(resource_path(os.path.join("images", "frog2.png")),
+                             confidence=0.7, click_times=1, step_name="嘗試變身")
+            else:
+                print(f"[{time.strftime('%m-%d %H:%M')}] 未偵測到青蛙王子")
+                if click_button(resource_path(os.path.join("images", "frog.png")),
+                                confidence=0.7, click_times=1, step_name="再次偵測青蛙王子"):
+                    time.sleep(0.2)
+                    click_button(resource_path(os.path.join("images", "frog2.png")),
+                                 confidence=0.7, click_times=1, step_name="嘗試變身")
+                else:
+                    print(f"[{time.strftime('%m-%d %H:%M')}] 青蛙王子未偵測到")
+
+                    print(f"[{time.strftime('%m-%d %H:%M')}] 整理盤面")
+                    region_area = (138, 989, 903, 428)
+
+                    general_images = ["bow.png", "thief.png"]
+                    general_detected = False
+                    for img in general_images:
+                        time.sleep(0.1)
+                        if click_button(resource_path(os.path.join("images", img)),
+                                        confidence=0.4, click_times=1, step_name=f"偵測一般兵種：{img}",
+                                        region=region_area):
+                            time.sleep(0.5)
+                            if not general_detected:
+                                print(f"[{time.strftime('%m-%d %H:%M')}] 整理一般兵種")
+                                general_detected = True
+                            click_button(resource_path(os.path.join("images", "sell1.png")),
+                                         confidence=0.4, click_times=1, step_name="一般兵種",
+                                         region=region_area)
+                    if not general_detected:
+                        print(f"[{time.strftime('%m-%d %H:%M')}] 一般兵種無需整理")
+
+                    rare_images = ["blue_machine.png", "demon.png", "sandman.png", "swordsman.png"]
+                    rare_detected = False
+                    for img in rare_images:
+                        time.sleep(0.1)
+                        if click_button(resource_path(os.path.join("images", img)),
+                                        confidence=0.4, click_times=1, step_name=f"偵測稀有兵種：{img}",
+                                        region=region_area):
+                            time.sleep(0.5)
+                            if not rare_detected:
+                                print(f"[{time.strftime('%m-%d %H:%M')}] 整理稀有兵種")
+                                rare_detected = True
+                            click_button(resource_path(os.path.join("images", "sell2.png")),
+                                         confidence=0.4, click_times=1, step_name="稀有兵種",
+                                         region=region_area)
+                    if not rare_detected:
+                        print(f"[{time.strftime('%m-%d %H:%M')}] 稀有兵種無需整理")
+
+                    hero_images = ["hunter.png", "purple_machine.png"]
+                    hero_detected = False
+                    for img in hero_images:
+                        time.sleep(0.1)
+                        if click_button(resource_path(os.path.join("images", img)),
+                                        confidence=0.4, click_times=1, step_name=f"偵測英雄兵種：{img}",
+                                        region=region_area):
+                            time.sleep(0.5)
+                            if not hero_detected:
+                                print(f"[{time.strftime('%m-%d %H:%M')}] 整理英雄兵種")
+                                hero_detected = True
+                            click_button(resource_path(os.path.join("images", "sell3.png")),
+                                         confidence=0.4, click_times=1, step_name="英雄兵種",
+                                         region=region_area)
+                    if not hero_detected:
+                        print(f"[{time.strftime('%m-%d %H:%M')}] 英雄兵種無需整理")
+
+                    legend_images = ["police.png", "tiger.png", "gold_machine.png"]
+                    legend_detected = False
+                    for img in legend_images:
+                        time.sleep(0.1)
+                        if click_button(resource_path(os.path.join("images", img)),
+                                        confidence=0.4, click_times=1, step_name=f"偵測傳說兵種：{img}",
+                                        region=region_area):
+                            time.sleep(0.5)
+                            if not legend_detected:
+                                print(f"[{time.strftime('%m-%d %H:%M')}] 整理傳說兵種")
+                                legend_detected = True
+                            click_button(resource_path(os.path.join("images", "sell4.png")),
+                                         confidence=0.4, click_times=1, step_name="傳說兵種",
+                                         region=region_area)
+                    if not legend_detected:
+                        print(f"[{time.strftime('%m-%d %H:%M')}] 傳說兵種無需整理")
+
+            if click_button(resource_path(os.path.join("images", "nocash.png")),
+                            confidence=0.7, click_times=1, step_name="再次檢查禮包訊息"):
+                print(f"[{time.strftime('%m-%d %H:%M')}] 禮包訊息已取消")
+            else:
+                print(f"[{time.strftime('%m-%d %H:%M')}] 未偵測到禮包訊息")
+
+            if click_button(resource_path(os.path.join("images", "start_game.png")),
+                            confidence=0.7, click_times=0, step_name="檢查開始遊戲"):
+                print(f"[{time.strftime('%m-%d %H:%M')}] 開始遊戲")
+                break
+
+            if click_button(resource_path(os.path.join("images", "game.png")),
+                            confidence=0.7, click_times=0, step_name="檢查開始後是否閃退"):
+                print(f"[{time.strftime('%m-%d %H:%M')}] 開始遊戲後閃退")
+                break
+
+            if click_button(resource_path(os.path.join("images", "cancel.png")),
+                            confidence=0.7, click_times=1, step_name="取消配對"):
+                print(f"[{time.strftime('%m-%d %H:%M')}] 取消配對")
+                break
+            else:
+                try:
+                    return_location = pyautogui.locateCenterOnScreen(
+                        resource_path(os.path.join("images", "return_to_lobby.png")),
+                        confidence=0.7
+                    )
+                except Exception as e:
+                    print(f"[{time.strftime('%m-%d %H:%M')}] 返回大廳圖片錯誤：{e}")
+                    return_location = None
+
+                if return_location:
+                    script_dir = os.path.dirname(os.path.abspath(__file__))
+                    folder_name = r"C:\Users\user\PycharmProjects\LD NEW\.venv\screenshots"
+                    folder_path = os.path.join(script_dir, folder_name)
+                    if not os.path.exists(folder_path):
+                        os.makedirs(folder_path)
+                    now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    screenshot_filename = os.path.join(folder_path, f"{now}.png")
+                    pyautogui.screenshot(screenshot_filename, region=(5, 3, 1199, 2106))
+                    print(f"[{time.strftime('%m-%d %H:%M')}] 返回大廳，已截圖：{screenshot_filename}")
+                    pyautogui.click(return_location[0], return_location[1])
+                    print(f"[{time.strftime('%m-%d %H:%M')}] 返回大廳")
+                    break
+                else:
+                    print(f"[{time.strftime('%m-%d %H:%M')}] 未偵測到取消配對或返回大廳")
+                    time.sleep(2)
+
+        print(f"[{time.strftime('%m-%d %H:%M')}] 完成本輪內層循環")
+
+
+if __name__ == '__main__':
+    keyboard.add_hotkey('f8', start_script)
+    keyboard.add_hotkey('f9', stop_script)
+    print(f"[{time.strftime('%m-%d %H:%M')}] F8 啟動，F9 停止")
+    keyboard.wait()
